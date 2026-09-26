@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>給妳的生日驚喜</title>
+  <style>
+    /* ================= 1. 全局變數與背景切換 ================= */
+    :root {
+      --bg-dark: #16111a;
+      --bg-light: #2a1b2e;
+      --neon-pink: #ff9eaa;
+      --neon-peach: #ffd1dc;
+      --paper-bg: #fdfaf7;
+      --text-main: #5a4f4f;
+      --text-light: #8c7a7a;
+      --accent-color: #d06262;
+    }
+    body {
+      margin: 0; padding: 0; 
+      background: radial-gradient(circle at 50% 30%, var(--bg-light) 0%, var(--bg-dark) 100%);
+      font-family: -apple-system, "PingFang TC", "Helvetica Neue", sans-serif;
+      overflow: hidden; touch-action: pan-y; -webkit-tap-highlight-color: transparent;
+      height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      transition: background 0.8s ease;
+    }
+    body.reading-mode {
+      background: var(--paper-bg);
+      background-image: 
+        linear-gradient(rgba(210, 190, 180, 0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(210, 190, 180, 0.08) 1px, transparent 1px);
+      background-size: 20px 20px, 20px 20px;
+    }
+
+    .ambient-light {
+      position: absolute; top: 20%; left: 50%; transform: translate(-50%, -50%);
+      width: 300px; height: 300px; background: rgba(255, 158, 170, 0.15);
+      filter: blur(80px); pointer-events: none; z-index: 0; transition: opacity 0.8s;
+    }
+    body.reading-mode .ambient-light { opacity: 0; }
+
+    /* ================= 2. 壓克力盲盒展示箱 ================= */
+    .view-layer {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.6s ease;
+      width: 100%;
+    }
+    .view-layer.hidden { opacity: 0; pointer-events: none; transform: translate(-50%, -50%) scale(0.85); }
+
+    .acrylic-box {
+      width: 260px; height: 320px; 
+      background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      border: 1.5px solid rgba(255,255,255,0.15); border-radius: 30px;
+      box-shadow: 0 30px 60px rgba(0,0,0,0.5), inset 0 0 20px rgba(255,255,255,0.05);
+      position: relative; overflow: hidden; display: flex; justify-content: center; align-items: center;
+    }
+    .acrylic-box.processing {
+      animation: machineShake 0.4s ease-in-out infinite alternate;
+      box-shadow: 0 0 40px rgba(255, 158, 170, 0.4), inset 0 0 30px rgba(255, 158, 170, 0.2);
+      border-color: rgba(255, 158, 170, 0.6);
+    }
+    @keyframes machineShake { 0% { transform: translate(1px, 1px) rotate(0deg); } 100% { transform: translate(-1px, -2px) rotate(-1deg); } }
+
+    .pig-figure { width: 130px; height: 130px; filter: drop-shadow(0 15px 25px rgba(0,0,0,0.4)); transition: transform 0.3s ease; }
+    .eyes-normal { opacity: 1; transition: opacity 0.2s; }
+    .eyes-happy { opacity: 0; transition: opacity 0.2s; }
+    .acrylic-box.processing .pig-figure { transform: scale(1.05) translateY(-5px); }
+    .acrylic-box.processing .eyes-normal { opacity: 0; }
+    .acrylic-box.processing .eyes-happy { opacity: 1; }
+
+    .control-panel { margin-top: 30px; display: flex; flex-direction: column; align-items: center; position: relative; height: 100px; width: 100%;}
+    
+    .insert-hint {
+      font-size: 0.75rem; letter-spacing: 0.2em; color: var(--neon-peach); font-weight: 600;
+      text-transform: uppercase; margin-bottom: 15px; animation: pulseText 1.5s infinite alternate; 
+    }
+    @keyframes pulseText { 0% { opacity: 0.5; } 100% { opacity: 1; text-shadow: 0 0 10px rgba(255, 209, 220, 0.8); } }
+
+    .cookie {
+      width: 65px; height: 65px; cursor: pointer; position: relative; z-index: 5;
+      filter: drop-shadow(0 0 15px rgba(255, 209, 220, 0.3)); transition: transform 0.4s ease;
+      animation: hoverCookie 2.5s infinite ease-in-out;
+    }
+    @keyframes hoverCookie { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+    .cookie.inserted { animation: insertAnim 0.5s forwards ease-in; pointer-events: none; }
+    @keyframes insertAnim { to { transform: translateY(-100px) scale(0.2); opacity: 0; } }
+
+    .gacha-capsule {
+      position: absolute; top: 0; width: 75px; height: 75px; opacity: 0; pointer-events: none; cursor: pointer;
+      filter: drop-shadow(0 0 20px rgba(255, 158, 170, 0.6)); transition: transform 0.2s ease;
+    }
+    .gacha-capsule.dropped { animation: dropBounce 1s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards; pointer-events: auto; opacity: 1; z-index: 20; }
+    .gacha-capsule:active { transform: scale(0.9); }
+    @keyframes dropBounce { 0% { transform: translateY(-100px) scale(0.5); opacity: 0; } 50% { transform: translateY(20px) scale(1); opacity: 1; } 75% { transform: translateY(-10px) scale(1); } 100% { transform: translateY(0) scale(1); opacity: 1; } }
+
+    /* ================= 3. 信封過場動畫 ================= */
+    .envelope-wrapper {
+      width: 300px; height: 200px; position: relative; cursor: pointer; perspective: 1000px;
+    }
+    .env-back { position: absolute; width: 100%; height: 100%; background: #fdf5f2; border-radius: 8px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); z-index: 1; }
+    .env-paper {
+      position: absolute; bottom: 10px; left: 5%; width: 90%; height: 90%; background: #fff; border-radius: 6px;
+      transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1); z-index: 2; display: flex; justify-content: center; align-items: center; color: var(--accent-color); font-weight: bold; letter-spacing: 0.1em; font-size: 0.9rem;
+    }
+    .env-front {
+      position: absolute; bottom: 0; left: 0; width: 100%; height: 65%; background: #fcf1ef; border-radius: 0 0 8px 8px; z-index: 3;
+      clip-path: polygon(0 0, 50% 30%, 100% 0, 100% 100%, 0 100%); box-shadow: inset 0 2px 5px rgba(255,255,255,0.5);
+    }
+    .env-flap {
+      position: absolute; top: 0; left: 0; width: 100%; height: 55%; background: #faebe8; border-radius: 8px 8px 0 0; z-index: 4;
+      clip-path: polygon(0 0, 100% 0, 50% 100%); transform-origin: top; transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .env-seal {
+      position: absolute; top: 52%; left: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; background: #d06262; border-radius: 50%; z-index: 5;
+      display: flex; justify-content: center; align-items: center; transition: opacity 0.2s; box-shadow: 0 4px 10px rgba(208, 98, 98, 0.5);
+    }
+    .env-seal svg { width: 18px; height: 18px; fill: #fff; }
+    
+    .envelope-hint { position: absolute; bottom: -40px; left: 50%; transform: translateX(-50%); font-size: 0.8rem; letter-spacing: 0.15em; color: var(--neon-peach); white-space: nowrap; animation: pulseText 1.5s infinite alternate;}
+
+    .envelope-wrapper.is-open .env-flap { transform: rotateX(180deg); z-index: 1; }
+    .envelope-wrapper.is-open .env-seal { opacity: 0; }
+    .envelope-wrapper.is-open .env-paper { transform: translateY(-100px); z-index: 4; }
+
+    /* ================= 4. 專屬信件閱讀模式 ================= */
+    .letter-modal {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      z-index: 100; opacity: 0; pointer-events: none; overflow-y: auto; overflow-x: hidden;
+      display: flex; flex-direction: column; align-items: center; padding: 40px 20px 80px 20px; box-sizing: border-box;
+      transition: opacity 0.6s ease;
+    }
+    .letter-modal.active { opacity: 1; pointer-events: auto; }
+
+    .letter-content {
+      width: 100%; max-width: 400px; background: #fff; border-radius: 12px;
+      box-shadow: 0 20px 50px rgba(180, 170, 160, 0.2); position: relative; padding: 30px; box-sizing: border-box;
+      transform: translateY(40px); transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .letter-modal.active .letter-content { transform: translateY(0); }
+
+    .polaroid-stack {
+      position: relative; width: 85%; height: 340px; margin: 0 auto 30px auto;
+      cursor: pointer; perspective: 1000px;
+    }
+    .stack-hint {
+      position: absolute; bottom: -35px; left: 50%; transform: translateX(-50%);
+      font-size: 0.75rem; color: var(--text-light); letter-spacing: 0.1em;
+    }
+    
+    .polaroid-item {
+      position: absolute; top: 0; left: 0; width: 100%; height: 320px;
+      background: #fff; padding: 10px 10px 25px 10px; border-radius: 4px; box-sizing: border-box;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.08); transition: transform 0.4s ease; transform-origin: center bottom;
+      display: flex; flex-direction: column;
+    }
+    
+    .polaroid-item:nth-child(1) { transform: rotate(-2deg); z-index: 3; }
+    .polaroid-item:nth-child(2) { transform: rotate(3deg) translate(4px, 4px); z-index: 2; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+    .polaroid-item:nth-child(3) { transform: rotate(-1deg) translate(-2px, 8px); z-index: 1; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+
+    .polaroid-item.flip-out { animation: flipOutAnim 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; pointer-events: none; }
+    @keyframes flipOutAnim {
+      0% { transform: rotate(-2deg) translate(0, 0); opacity: 1; }
+      50% { transform: rotate(-15deg) translate(-80px, -20px); opacity: 0.6; }
+      100% { transform: rotate(0deg) translate(0, 0); opacity: 0; z-index: -1; }
+    }
+
+    /* 確保相片不變形且居中 */
+    .polaroid-item img { width: 100%; height: 230px; object-fit: cover; background: #f0f0f0; border-radius: 2px; }
+    
+    /* 調整文字大小與多行置中 */
+    .polaroid-caption { text-align: center; margin-top: 12px; font-size: 0.8rem; color: var(--text-light); font-weight: 500; letter-spacing: 0.05em; line-height: 1.4;}
+    
+    .tape {
+      position: absolute; top: -12px; left: 50%; transform: translateX(-50%) rotate(3deg);
+      width: 80px; height: 25px; background: rgba(255, 255, 255, 0.7);
+      background-image: repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(255,255,255,0.4) 4px, rgba(255,255,255,0.4) 8px);
+      backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); box-shadow: 0 2px 4px rgba(0,0,0,0.05); z-index: 2;
+    }
+
+    .vinyl-player {
+      position: absolute; top: 30px; right: 25px; width: 45px; height: 45px;
+      cursor: pointer; z-index: 10; display: flex; align-items: center; justify-content: center;
+    }
+    .vinyl-record {
+      width: 40px; height: 40px; border-radius: 50%; background: #2c2c2c;
+      border: 2px solid #1a1a1a; display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.15); transition: transform 0.2s;
+      background-image: repeating-radial-gradient(#2c2c2c, #2c2c2c 2px, #3a3a3a 3px, #3a3a3a 4px);
+    }
+    .vinyl-record.playing { animation: spinVinyl 3s linear infinite; }
+    .vinyl-center { width: 14px; height: 14px; background: var(--accent-color); border-radius: 50%; border: 2px solid #1a1a1a; }
+    @keyframes spinVinyl { 100% { transform: rotate(360deg); } }
+
+    .svg-handwriting { width: 160px; height: 50px; margin-bottom: 15px; }
+    .svg-handwriting text {
+      font-family: 'Dancing Script', cursive; font-size: 38px; font-weight: 400;
+      fill: transparent; stroke: var(--accent-color); stroke-width: 1.2px; stroke-dasharray: 400; stroke-dashoffset: 400;
+    }
+    .letter-modal.active .svg-handwriting text.animate-draw {
+      animation: drawText 2s cubic-bezier(0.25, 1, 0.5, 1) forwards, fillText 0.8s ease 1.5s forwards;
+    }
+    @keyframes drawText { to { stroke-dashoffset: 0; } }
+    @keyframes fillText { to { fill: var(--accent-color); stroke-width: 0.5px; } }
+
+    .typewriter-text { font-size: 1.05rem; line-height: 2.2; letter-spacing: 0.05em; color: var(--text-main); min-height: 200px; text-align: justify; }
+
+    .put-back-btn {
+      margin-top: 40px; display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; padding: 15px 0; background: #faf7f2; border: 1px solid #eae0d5; border-radius: 25px;
+      color: var(--accent-color); font-size: 1rem; font-weight: 600; letter-spacing: 0.1em; cursor: pointer;
+      box-shadow: 0 4px 10px rgba(180, 170, 160, 0.1); transition: all 0.2s ease;
+    }
+    .put-back-btn:active { transform: scale(0.98); background: #f0e9e1; }
+    .put-back-btn svg { width: 20px; height: 20px; fill: currentColor; }
+
+    .confetti { position: fixed; width: 8px; height: 16px; opacity: 0; z-index: 90; pointer-events: none; }
+  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <div class="ambient-light"></div>
+
+  <!-- 第一頁：盲盒機 -->
+  <div class="view-layer" id="machineView">
+    <div class="acrylic-box" id="acrylicBox">
+      <div class="pig-figure">
+        <svg viewBox="0 0 100 100">
+          <polygon points="25,45 15,15 45,35" fill="#ff9eaa" /><polygon points="75,45 85,15 55,35" fill="#ff9eaa" />
+          <ellipse cx="50" cy="60" rx="45" ry="38" fill="#ffd1dc" /><ellipse cx="50" cy="65" rx="15" ry="10" fill="#ff9eaa" />
+          <circle cx="45" cy="65" r="2.5" fill="#fff" /><circle cx="55" cy="65" r="2.5" fill="#fff" />
+          <g class="eyes-normal"><circle cx="30" cy="50" r="4" fill="#5a4f4f" /><circle cx="70" cy="50" r="4" fill="#5a4f4f" /></g>
+          <g class="eyes-happy"><path d="M 26 50 Q 30 44 34 50" fill="none" stroke="#5a4f4f" stroke-width="4" stroke-linecap="round"/><path d="M 66 50 Q 70 44 74 50" fill="none" stroke="#5a4f4f" stroke-width="4" stroke-linecap="round"/></g>
+          <ellipse cx="22" cy="60" rx="6" ry="3" fill="#ffb6c1" opacity="0.8" /><ellipse cx="78" cy="60" rx="6" ry="3" fill="#ffb6c1" opacity="0.8" />
+        </svg>
+      </div>
+    </div>
+
+    <div class="control-panel">
+      <div class="insert-hint" id="insertHint">Insert to Unlock</div>
+      <div class="cookie" id="cookieElement">
+        <svg viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="45" fill="#e8c396" /><circle cx="35" cy="40" r="6" fill="#8b5a2b" /><circle cx="65" cy="45" r="7" fill="#8b5a2b" /><circle cx="45" cy="70" r="5" fill="#8b5a2b" /><circle cx="70" cy="65" r="4" fill="#8b5a2b" /><circle cx="30" cy="60" r="4" fill="#8b5a2b" /><circle cx="55" cy="30" r="5" fill="#8b5a2b" />
+        </svg>
+      </div>
+      <div class="gacha-capsule" id="capsuleElement">
+        <svg viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="45" fill="rgba(255,255,255,0.9)" />
+          <path d="M5 50 A 45 45 0 0 1 95 50 Z" fill="#ff9eaa" />
+          <circle cx="50" cy="50" r="10" fill="#fff" stroke="#ff9eaa" stroke-width="3" />
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- 中繼動畫：浮空的信封 -->
+  <div class="view-layer hidden" id="envelopeView">
+    <div class="envelope-wrapper" id="envelopeElement">
+      <div class="env-back"></div>
+      <div class="env-paper">Pull out letter</div>
+      <div class="env-front"></div>
+      <div class="env-flap"></div>
+      <div class="env-seal"><svg viewBox="0 0 32 32"><path d="M16 28.72l-1.84-1.68C7.28 21.2 2 16.48 2 10.56 2 5.84 5.84 2 10.56 2c2.64 0 5.2 1.28 6.8 3.36 1.6-2.08 4.16-3.36 6.8-3.36 4.72 0 8.56 3.84 8.56 8.56 0 5.92-5.28 10.64-12.16 16.48L16 28.72z"/></svg></div>
+      <div class="envelope-hint">TAP TO OPEN</div>
+    </div>
+  </div>
+
+  <!-- 第二頁：沉浸式信件閱讀 -->
+  <div class="letter-modal" id="letterModal">
+    <div class="letter-content">
+      
+      <!-- 黑膠語音按鈕 -->
+      <div class="vinyl-player" id="vinylPlayer">
+        <div class="vinyl-record" id="vinylRecord">
+          <div class="vinyl-center"></div>
+        </div>
+      </div>
+      <audio id="voiceMemo" src="voice.mp3"></audio>
+
+      <!-- 拍立得相冊 (已匯入三張照片檔名與文字) -->
+      <div class="polaroid-stack" id="polaroidStack">
+        <div class="polaroid-item">
+          <div class="tape"></div>
+          <img src="IMG_1682.jpg" alt="天婦羅">
+          <div class="polaroid-caption">偶們去粗好飯之一 天婦羅<br>謝謝寶寶請客！</div>
+        </div>
+        <div class="polaroid-item">
+          <div class="tape"></div>
+          <img src="IMG_1694.jpg" alt="咖啡廳">
+          <div class="polaroid-caption">那天太陽好大！寶寶借我帽子遮陽<br>特別喜歡咱倆去咖啡廳唸書</div>
+        </div>
+        <div class="polaroid-item">
+          <div class="tape"></div>
+          <img src="IMG_1698.jpg" alt="大排檔">
+          <div class="polaroid-caption">江西大排檔！<br>超好粗一定要再一起去粗</div>
+        </div>
+        <div class="stack-hint">Tap photo to flip</div>
+      </div>
+
+      <!-- 手寫信開頭與內文 -->
+      <svg viewBox="0 0 200 50" class="svg-handwriting">
+        <text x="5" y="40" id="svgGreeting">Happy Birthday,</text>
+      </svg>
+      <div class="typewriter-text" id="typewriterText"></div>
+
+      <!-- 放回信封按鈕 -->
+      <div class="put-back-btn" onclick="putBackInEnvelope()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
+        放回信封
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    const letterContent = "DEAR DEAR 曠越 曠bb：\n\n祝妳生日快樂！\n\n最近妳有點焦慮又疲勞，好心疼妳嗚嗚嗚嗚嗚，\n\n很可惜我不能在生日的時候待在妳身邊，\n\n但偶希望不管遇到什麼困難，偶們都能陪伴彼此一起克服，\n\n殷切祝福妳新的一歲平平安安 健健康康 快快樂樂 順順利利。\n\n愛妳的小豬象";
+    
+    const machineView = document.getElementById('machineView');
+    const acrylicBox = document.getElementById('acrylicBox');
+    const cookie = document.getElementById('cookieElement');
+    const insertHint = document.getElementById('insertHint');
+    const capsule = document.getElementById('capsuleElement');
+    
+    const envelopeView = document.getElementById('envelopeView');
+    const envelopeElement = document.getElementById('envelopeElement');
+    
+    const letterModal = document.getElementById('letterModal');
+    const svgGreeting = document.getElementById('svgGreeting');
+    const typewriterText = document.getElementById('typewriterText');
+
+    let isProcessing = false;
+    let typeWriterInterval = null;
+    let hasReadLetter = false;
+
+    const fireConfetti = () => {
+      const colors = ['#ff9eaa', '#ffd1dc', '#fff', '#fdfaf7'];
+      for (let i = 0; i < 60; i++) {
+        const confetti = document.createElement('div'); confetti.classList.add('confetti');
+        confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        confetti.style.left = `50%`; confetti.style.top = `60%`; 
+        if(Math.random() > 0.5) confetti.style.borderRadius = '50%';
+        document.body.appendChild(confetti);
+
+        const angle = Math.random() * Math.PI * 2; const velocity = 8 + Math.random() * 20;
+        const tx = Math.cos(angle) * velocity * 15; const ty = Math.sin(angle) * velocity * 15 - 100;
+
+        requestAnimationFrame(() => {
+          confetti.style.transition = 'all 1.2s cubic-bezier(0.25, 1, 0.5, 1)';
+          confetti.style.opacity = '1'; confetti.style.transform = `translate(${tx}px, ${ty}px) rotate(${Math.random() * 720}deg)`;
+        });
+        setTimeout(() => { confetti.style.opacity = '0'; setTimeout(() => confetti.remove(), 500); }, 1500);
+      }
+    };
+
+    cookie.addEventListener('click', () => {
+      if (isProcessing) return;
+      isProcessing = true;
+      cookie.classList.add('inserted');
+      insertHint.style.opacity = '0';
+
+      setTimeout(() => {
+        acrylicBox.classList.add('processing');
+        setTimeout(() => {
+          acrylicBox.classList.remove('processing');
+          capsule.classList.add('dropped');
+          insertHint.innerText = "TAP TO OPEN";
+          insertHint.style.animation = "none";
+          insertHint.style.opacity = "1";
+        }, 1500);
+      }, 400);
+    });
+
+    capsule.addEventListener('click', () => {
+      capsule.style.transform = "scale(0)"; capsule.style.opacity = "0";
+      insertHint.style.opacity = "0";
+      fireConfetti();
+
+      machineView.classList.add('hidden'); 
+      setTimeout(() => { envelopeView.classList.remove('hidden'); }, 500);
+    });
+
+    envelopeElement.addEventListener('click', () => {
+      if(envelopeElement.classList.contains('is-open')) return;
+      
+      envelopeElement.classList.add('is-open');
+      document.querySelector('.envelope-hint').style.opacity = "0";
+
+      setTimeout(() => {
+        document.body.classList.add('reading-mode');
+        envelopeView.classList.add('hidden');
+        
+        letterModal.classList.add('active');
+        letterModal.scrollTop = 0;
+
+        svgGreeting.classList.remove('animate-draw');
+        void svgGreeting.offsetWidth; 
+        svgGreeting.classList.add('animate-draw');
+
+        clearInterval(typeWriterInterval);
+        typewriterText.innerHTML = '';
+        if (hasReadLetter) {
+          setTimeout(() => { typewriterText.innerHTML = letterContent.replace(/\n/g, '<br>'); }, 1200);
+        } else {
+          let i = 0;
+          setTimeout(() => {
+            typeWriterInterval = setInterval(() => {
+              if (i < letterContent.length) {
+                const char = letterContent.charAt(i);
+                typewriterText.innerHTML += (char === '\n') ? '<br>' : char;
+                i++;
+              } else {
+                clearInterval(typeWriterInterval);
+                hasReadLetter = true;
+              }
+            }, 70);
+          }, 1500);
+        }
+      }, 800); 
+    });
+
+    function putBackInEnvelope() {
+      letterModal.classList.remove('active');
+      clearInterval(typeWriterInterval);
+      
+      if (isAudioPlaying) {
+        voiceMemo.pause();
+        vinylRecord.classList.remove('playing');
+        isAudioPlaying = false;
+      }
+      
+      document.body.classList.remove('reading-mode');
+      envelopeView.classList.remove('hidden');
+      
+      setTimeout(() => {
+        envelopeElement.classList.remove('is-open');
+        setTimeout(() => {
+          envelopeView.classList.add('hidden');
+          machineView.classList.remove('hidden');
+          
+          cookie.classList.remove('inserted');
+          capsule.classList.remove('dropped');
+          capsule.style.transform = ""; capsule.style.opacity = "";
+          insertHint.innerText = "Insert to Unlock";
+          insertHint.style.animation = "pulseText 1.5s infinite alternate";
+          insertHint.style.opacity = "1";
+          document.querySelector('.envelope-hint').style.opacity = "1";
+          
+          isProcessing = false;
+        }, 800); 
+      }, 400); 
+    }
+
+    const polaroidStack = document.getElementById('polaroidStack');
+    let isFlipping = false;
+    polaroidStack.addEventListener('click', () => {
+      if (isFlipping) return;
+      const items = polaroidStack.querySelectorAll('.polaroid-item');
+      if (items.length <= 1) return;
+      
+      isFlipping = true;
+      const topItem = items[0];
+      topItem.classList.add('flip-out');
+      
+      topItem.addEventListener('animationend', function handler() {
+        topItem.classList.remove('flip-out');
+        polaroidStack.appendChild(topItem);
+        topItem.removeEventListener('animationend', handler);
+        isFlipping = false;
+      });
+    });
+
+    // ==========================================
+    // 黑膠語音播放邏輯
+    // ==========================================
+    const vinylPlayer = document.getElementById('vinylPlayer');
+    const vinylRecord = document.getElementById('vinylRecord');
+    const voiceMemo = document.getElementById('voiceMemo');
+    let isAudioPlaying = false;
+
+    vinylPlayer.addEventListener('click', (e) => {
+      e.stopPropagation();
+      
+      if (isAudioPlaying) {
+        voiceMemo.pause();
+        vinylRecord.classList.remove('playing');
+        isAudioPlaying = false;
+      } else {
+        let playPromise = voiceMemo.play();
+        
+        if (playPromise !== undefined) {
+          playPromise.then(_ => {
+            vinylRecord.classList.add('playing');
+            isAudioPlaying = true;
+          })
+          .catch(error => {
+            alert("無法播放音檔！\n\n請檢查手機側邊的靜音開關是否開啟。\n\n請確保音檔 voice.mp3 與此 HTML 檔案放在同一個資料夾。");
+            console.error("播放錯誤:", error);
+            vinylRecord.classList.remove('playing');
+            isAudioPlaying = false;
+          });
+        }
+      }
+    });
+
+    voiceMemo.addEventListener('ended', () => {
+      vinylRecord.classList.remove('playing');
+      isAudioPlaying = false;
+    });
+  </script>
+</body>
+</html>
